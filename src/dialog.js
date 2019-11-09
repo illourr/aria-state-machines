@@ -1,29 +1,79 @@
+const FOCUSABLE_QUERY =
+  'button, [href], input, select, textarea, [tabindex]:not([tabindex="-1"])';
+
 const dialogMachine = Machine(
   {
-    id: "dialog (modal)",
-    initial: "unmounted",
+    id: 'dialog (modal)',
+    initial: 'closed',
     context: {
-      retries: 0
+      // to be passed in as a ref to the dom node with is the modal container
+      // used for focus trapping
+      containerEl: document.querySelector('body'),
+      // The currently focused element.
+      // We will set this when opened and what tabbing around the dialog.
+      focusedElement: null,
+      firstFocusable: null,
+      lastFocusable: null
     },
     states: {
-      unmounted: {
+      closed: {
         on: {
-          OPEN: "idle"
+          OPEN: {
+            target: 'showing',
+            actions: [
+              assign({
+                focusedElement: (ctx, e) => ctx.containerEl,
+                firstFocusable: (ctx, e) =>
+                  ctx.containerEl.querySelectorAll(FOCUSABLE_QUERY)[0],
+                lastFocusable: (ctx, e) =>
+                  Array.from(
+                    ctx.containerEl.querySelectorAll(FOCUSABLE_QUERY)
+                  ).slice(-1)
+              }),
+              'onOpen'
+            ]
+          }
         }
       },
-      idle: {
+      showing: {
         on: {
           TAB: {
-            target: "idle",
-            actions: ["nextElement"]
+            target: 'showing',
+            actions: [
+              assign({
+                focusedElement: (ctx, e) => {
+                  if (ctx.focusedElement === ctx.lastFocusable) {
+                    return ctx.firstFocusable;
+                  }
+                }
+              }),
+              'onTab'
+            ]
           },
           SHIFT_TAB: {
-            target: "idle",
-            actions: ["previousElement"]
+            target: 'showing',
+            actions: [
+              assign({
+                focusedElement: (ctx, e) => {
+                  if (ctx.focusedElement === ctx.firstFocusable) {
+                    return ctx.lastFocusable;
+                  }
+                }
+              }),
+              'onShiftTab'
+            ]
           },
           ESCAPE: {
-            target: "unmounted",
-            actions: ["close"]
+            target: 'closed',
+            actions: [
+              assign({
+                containerEl: () => document.querySelector('body'),
+                focusedElement: () => null,
+                firstFocusable: () => null,
+                lastFocusable: () => null
+              }),
+              'onClose'
+            ]
           }
         }
       }
@@ -31,29 +81,19 @@ const dialogMachine = Machine(
   },
   {
     actions: {
-      nextElement: (context, event) => {
-        console.log("Focus next element");
+      onOpen: (context, event) => {
+        console.log(context, event);
+        console.log('Open the modal');
       },
-      previousElement: (context, event) => {
-        console.log("Focus previous element");
+      onClose: (context, event) => {
+        console.log('Close the modal', context);
       },
-      close: (context, event) => {
-        console.log("Close the modal");
+      onTab: (context, event) => {
+        console.log('Focus next element', context);
+      },
+      onShiftTab: (context, event) => {
+        console.log('Focus previous element');
       }
     }
   }
 );
-
-const dialogWithActions = dialogMachine.withConfig({
-  actions: {
-    nextElement: (context, event) => {
-      console.log("Focus next element");
-    },
-    previousElement: (context, event) => {
-      console.log("Focus previous element");
-    },
-    close: (context, event) => {
-      console.log("Close the modal");
-    }
-  }
-});
